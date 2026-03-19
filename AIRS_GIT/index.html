@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIRS Dashboard | Air Intelligent Response System</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Poppins:wght@300;400;600;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <!-- Chart.js + adapters + zoom -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+    <!-- EmailJS (user-supplied keys — nothing is hard-coded) -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <!-- AIRS styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ==================== ALERT BANNER ==================== -->
+<div id="alert-banner" class="alert-banner hidden">
+    <i class="fas fa-triangle-exclamation"></i>
+    <span>GAS / FLAME DETECTED — VENTILATION FULLY OPEN — ALARM ACTIVE</span>
+    <i class="fas fa-triangle-exclamation"></i>
+</div>
+
+<!-- ==================== TOAST ==================== -->
+<div id="toast" class="toast">
+    <i id="toast-icon" class="fas fa-circle-check"></i>
+    <span id="toast-msg"></span>
+</div>
+
+<!-- ==================== INTRO ==================== -->
+<div id="intro-layer" class="intro-layer">
+    <div id="intro-content" class="intro-content">
+        <div class="intro-logo-text">AIRS</div>
+        <div class="intro-sub">Air Intelligent Response System</div>
+    </div>
+    <div id="intro-text-anim" class="intro-text-anim" style="display:none;">
+        <div class="word"><span class="highlight">A</span><span class="rest">IR</span></div>
+        <div class="word"><span class="highlight">I</span><span class="rest">NTELLIGENT</span></div>
+        <div class="word"><span class="highlight">R</span><span class="rest">ESPONSE</span></div>
+        <div class="word"><span class="highlight">S</span><span class="rest">YSTEM</span></div>
+    </div>
+</div>
+
+<!-- ==================== APP ==================== -->
+<div id="app-dashboard" class="app-dashboard">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- ── SIDEBAR ── -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-brand">AIRS</span>
+            <button class="close-sidebar" id="close-sidebar-btn"><i class="fas fa-xmark"></i></button>
+        </div>
+        <ul class="nav-links">
+            <li><button class="nav-btn active" data-target="home-view"><i class="fas fa-gauge-high"></i> Dashboard</button></li>
+            <li><button class="nav-btn" data-target="aqi-view"><i class="fas fa-wind"></i> Air Quality</button></li>
+            <li><button class="nav-btn" data-target="activity-view"><i class="fas fa-chart-line"></i> Activity</button></li>
+            <li><button class="nav-btn" data-target="control-view"><i class="fas fa-sliders"></i> Control</button></li>
+            <li><button class="nav-btn" data-target="settings-view"><i class="fas fa-gear"></i> Settings</button></li>
+        </ul>
+        <div class="sidebar-conn" id="sidebar-conn">
+            <i class="fas fa-circle" style="font-size:.6rem;color:#444;" id="sidebar-dot"></i>
+            <span id="sidebar-conn-text">Serial Disconnected</span>
+        </div>
+    </nav>
+
+    <!-- ── MAIN ── -->
+    <div class="main-content">
+        <header class="top-header">
+            <div class="hamburger-menu" id="hamburger-btn"><i class="fas fa-bars"></i></div>
+            <div class="header-title">
+                <h1 id="header-text-logo">AIRS</h1>
+                <div class="header-center">
+                    <div class="serial-status-pill" id="serial-status-pill">
+                        <div class="dot" id="header-active-led"></div>
+                        <span id="header-active-text">Inactive</span>
+                    </div>
+                    <button id="btn-connect-esp32" class="btn-connect" title="Requires Chrome / Edge (Web Serial API)">
+                        <i class="fas fa-plug"></i> Connect ESP32
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+
+            <!-- ========== HOME VIEW ========== -->
+            <div id="home-view" class="view-section active-view">
+                <div class="view-grid">
+
+                    <!-- Quick Glance -->
+                    <section class="panel glance-panel">
+                        <h2>
+                            <i class="fas fa-eye"></i> Quick Glance
+                            <span style="margin-left:auto;font-size:.75rem;color:var(--text-secondary);font-family:'Inter',sans-serif;font-weight:400;">
+                                <i class="fas fa-clock" style="margin-right:4px;"></i>Last: <span id="glance-ts">--:--:--</span>
+                            </span>
+                        </h2>
+                        <div class="glance-grid">
+                            <div class="glance-card" id="gc-mq135">
+                                <i class="fas fa-smog glance-card-icon" style="color:#00d2ff;"></i>
+                                <div class="glance-card-label">MQ135 · Air Quality</div>
+                                <div class="glance-card-value" id="gv-mq135">--</div>
+                            </div>
+                            <div class="glance-card" id="gc-mq2">
+                                <i class="fas fa-fire-flame-curved glance-card-icon" style="color:#ff9100;"></i>
+                                <div class="glance-card-label">MQ2 · Smoke / LPG</div>
+                                <div class="glance-card-value" id="gv-mq2">--</div>
+                            </div>
+                            <div class="glance-card" id="gc-mq5sim">
+                                <i class="fas fa-gas-pump glance-card-icon" style="color:#69ff47;"></i>
+                                <div class="glance-card-label">MQ5 · Nat. Gas (sim)</div>
+                                <div class="glance-card-value" id="gv-mq5sim">--</div>
+                            </div>
+                            <div class="glance-card state-safe" id="gc-temp">
+                                <i class="fas fa-temperature-half glance-card-icon" style="color:#ff6e40;"></i>
+                                <div class="glance-card-label">Temperature</div>
+                                <div><span class="glance-card-value" id="gv-temp">--</span><span class="glance-card-unit">°C</span></div>
+                            </div>
+                            <div class="glance-card state-safe" id="gc-hum">
+                                <i class="fas fa-droplet glance-card-icon" style="color:#40c4ff;"></i>
+                                <div class="glance-card-label">Humidity</div>
+                                <div><span class="glance-card-value" id="gv-hum">--</span><span class="glance-card-unit">%</span></div>
+                            </div>
+                            <div class="glance-card" id="gc-flame">
+                                <i class="fas fa-fire glance-card-icon" style="color:#ff5252;"></i>
+                                <div class="glance-card-label">Flame Sensor</div>
+                                <div class="glance-card-flame-no" id="gv-flame">NO</div>
+                            </div>
+                            <div class="glance-card" id="gc-aqi-mini">
+                                <i class="fas fa-wind glance-card-icon" style="color:#ea80fc;"></i>
+                                <div class="glance-card-label">AQI Score</div>
+                                <div class="glance-card-value" id="gv-aqi-mini" style="color:#ea80fc;">--</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- System Status -->
+                    <section class="panel status-panel">
+                        <h2><i class="fas fa-microchip"></i> System Status</h2>
+                        <div class="status-grid">
+                            <!-- Ventilation window -->
+                            <div class="status-item">
+                                <div class="vent-visual-row">
+                                    <div class="vent-svg-wrap">
+                                        <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+                                            <rect class="win-frame" x="3" y="3" width="48" height="48" rx="4"/>
+                                            <line x1="27" y1="3"  x2="27" y2="51" stroke="rgba(139,158,183,.4)" stroke-width="1.2"/>
+                                            <line x1="3"  y1="27" x2="51" y2="27" stroke="rgba(139,158,183,.4)" stroke-width="1.2"/>
+                                            <line class="louver closed" id="louver-tl" x1="9"  y1="15" x2="22" y2="15"/>
+                                            <line class="louver closed" id="louver-tr" x1="32" y1="15" x2="45" y2="15"/>
+                                            <line class="louver closed" id="louver-bl" x1="9"  y1="39" x2="22" y2="39"/>
+                                            <line class="louver closed" id="louver-br" x1="32" y1="39" x2="45" y2="39"/>
+                                        </svg>
+                                    </div>
+                                    <div class="status-details">
+                                        <span class="status-label"><i class="fas fa-wind" style="color:var(--accent);margin-right:5px;"></i>Ventilation Window</span>
+                                        <span class="status-value" id="stat-servo">CLOSED</span>
+                                        <span style="font-size:.72rem;color:var(--text-secondary);margin-top:3px;" id="stat-servo-angle">Servo: 0°</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Buzzer -->
+                            <div class="status-item">
+                                <div class="status-icon-wrap">
+                                    <i class="fas fa-bell" id="icon-buzzer" style="color:var(--text-secondary);"></i>
+                                </div>
+                                <div class="status-details">
+                                    <span class="status-label"><i class="fas fa-volume-high" style="color:var(--accent);margin-right:5px;"></i>Alarm Buzzer</span>
+                                    <span class="status-value" id="stat-buzzer">INACTIVE</span>
+                                </div>
+                            </div>
+                            <!-- LED subsystem -->
+                            <div class="status-item grid-span-full">
+                                <span class="status-label"><i class="fas fa-lightbulb" style="color:var(--accent);margin-right:6px;"></i>LED Subsystem</span>
+                                <div class="led-container">
+                                    <div class="led-wrapper"><div class="led led-green"  id="led-green"></div><span>Safe</span></div>
+                                    <div class="led-wrapper"><div class="led led-yellow" id="led-yellow"></div><span>Warn</span></div>
+                                    <div class="led-wrapper"><div class="led led-red"    id="led-red"></div><span>Danger</span></div>
+                                    <div class="led-wrapper"><div class="led led-blue"   id="led-blue"></div><span>Idle</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Power Profiler -->
+                    <section class="panel power-panel">
+                        <h2><i class="fas fa-bolt"></i> Power Profiler</h2>
+                        <div class="power-grid">
+                            <div class="power-card">
+                                <i class="fas fa-plug-circle-bolt power-icon"></i>
+                                <div class="power-details">
+                                    <span class="power-label"><i class="fas fa-wave-square" style="margin-right:5px;color:var(--accent);opacity:.7;"></i>Current Load</span>
+                                    <span class="power-value"><span id="val-current">0.18</span><span class="unit">A</span></span>
+                                </div>
+                            </div>
+                            <div class="power-card">
+                                <i class="fas fa-bolt power-icon"></i>
+                                <div class="power-details">
+                                    <span class="power-label"><i class="fas fa-gauge" style="margin-right:5px;color:var(--accent);opacity:.7;"></i>Power Draw</span>
+                                    <span class="power-value"><span id="val-power">0.90</span><span class="unit">W</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Serial Monitor -->
+                    <section class="panel serial-log-panel">
+                        <h2>
+                            <i class="fas fa-terminal"></i> Serial Monitor
+                            <span style="font-size:.74rem;color:var(--text-secondary);margin-left:8px;">115200 baud</span>
+                        </h2>
+                        <div class="serial-log-box" id="serial-log">
+                            <div class="no-serial-msg" id="no-serial-msg">
+                                <i class="fas fa-usb"></i>
+                                <span>Connect your ESP32 via USB to begin monitoring</span>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div><!-- /home-view -->
+
+            <!-- ========== AQI VIEW ========== -->
+            <div id="aqi-view" class="view-section hidden-view">
+                <div class="view-grid">
+                    <section class="panel aqi-panel">
+                        <h2>
+                            <i class="fas fa-wind"></i> Air Quality Index
+                            <span style="margin-left:auto;font-size:.75rem;color:var(--text-secondary);font-family:'Inter',sans-serif;font-weight:400;">
+                                AQI = 100 × (0.5·S₁₃₅ + 0.3·S₂ + 0.2·S₅)
+                            </span>
+                        </h2>
+                        <div class="aqi-layout">
+                            <!-- Dial -->
+                            <div class="aqi-dial-wrap">
+                                <div class="aqi-dial">
+                                    <svg viewBox="0 0 200 200">
+                                        <circle class="aqi-dial-track" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="125.5"/>
+                                        <circle class="aqi-dial-fill" id="aqi-arc" cx="100" cy="100" r="80" stroke="#00e676" stroke-dashoffset="502" stroke-dasharray="502" transform="rotate(135 100 100)"/>
+                                    </svg>
+                                    <div class="aqi-center-text">
+                                        <div class="aqi-number" id="aqi-number">--</div>
+                                        <div class="aqi-label-sm">AQI</div>
+                                    </div>
+                                </div>
+                                <div class="aqi-category" id="aqi-category" style="color:var(--color-safe);border:2px solid rgba(0,230,118,.4);background:rgba(0,230,118,.1);">Waiting…</div>
+                                <div style="font-size:.76rem;color:var(--text-secondary);text-align:center;max-width:220px;line-height:1.5;margin-top:4px;">
+                                    Composite score across MQ135 (50%), MQ2 (30%), MQ5-sim (20%) relative to baseline
+                                </div>
+                            </div>
+                            <!-- Breakdown -->
+                            <div class="aqi-formula-box">
+                                <h3><i class="fas fa-function" style="color:var(--accent);margin-right:6px;"></i>Live Calculation Breakdown</h3>
+
+                                <div class="aqi-sensor-row">
+                                    <span class="sr-label"><i class="fas fa-smog" style="color:#00d2ff;margin-right:5px;"></i>MQ135</span>
+                                    <span class="sr-raw">Raw: <span id="aqi-r135">--</span></span>
+                                    <span class="sr-baseline">B=<span id="aqi-b135">--</span></span>
+                                    <span class="sr-score" id="aqi-s135" style="color:#00d2ff;">S=--</span>
+                                </div>
+                                <div style="font-size:.72rem;color:var(--text-secondary);padding:2px 10px 8px;font-style:italic;">
+                                    S₁₃₅ = max(0, (V₁₃₅ − B) / B) × weight 0.5
+                                </div>
+
+                                <div class="aqi-sensor-row">
+                                    <span class="sr-label"><i class="fas fa-fire-flame-curved" style="color:#ff9100;margin-right:5px;"></i>MQ2</span>
+                                    <span class="sr-raw">Raw: <span id="aqi-r2">--</span></span>
+                                    <span class="sr-baseline">B=<span id="aqi-b2">--</span></span>
+                                    <span class="sr-score" id="aqi-s2" style="color:#ff9100;">S=--</span>
+                                </div>
+                                <div style="font-size:.72rem;color:var(--text-secondary);padding:2px 10px 8px;font-style:italic;">
+                                    S₂ = max(0, (V₂ − B) / B) × weight 0.3
+                                </div>
+
+                                <div class="aqi-sensor-row">
+                                    <span class="sr-label"><i class="fas fa-gas-pump" style="color:#69ff47;margin-right:5px;"></i>MQ5 (sim)</span>
+                                    <span class="sr-raw">Raw: <span id="aqi-r5">--</span></span>
+                                    <span class="sr-baseline">B=<span id="aqi-b5">--</span></span>
+                                    <span class="sr-score" id="aqi-s5" style="color:#69ff47;">S=--</span>
+                                </div>
+                                <div style="font-size:.72rem;color:var(--text-secondary);padding:2px 10px 8px;font-style:italic;">
+                                    S₅ = max(0, (V₅ − B) / B) × weight 0.2 &nbsp;·&nbsp; V₅ = (MQ135 + MQ2) / 2
+                                </div>
+
+                                <hr class="aqi-breakdown-sep">
+                                <div class="aqi-total-row">
+                                    <span class="aqi-total-label"><i class="fas fa-sigma" style="color:var(--accent);margin-right:6px;"></i>AQI = 100 × (0.5·S₁₃₅ + 0.3·S₂ + 0.2·S₅)</span>
+                                    <span class="aqi-total-value" id="aqi-total">--</span>
+                                </div>
+
+                                <hr class="aqi-breakdown-sep">
+                                <!-- AQI scale legend -->
+                                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px;">
+                                    <div style="background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.3);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#00e676;font-weight:700;">0–50</div><div style="color:var(--text-secondary);">Good</div>
+                                    </div>
+                                    <div style="background:rgba(255,234,0,.08);border:1px solid rgba(255,234,0,.3);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#ffea00;font-weight:700;">51–100</div><div style="color:var(--text-secondary);">Moderate</div>
+                                    </div>
+                                    <div style="background:rgba(255,145,0,.08);border:1px solid rgba(255,145,0,.3);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#ff9100;font-weight:700;">101–150</div><div style="color:var(--text-secondary);">Unhealthy SG</div>
+                                    </div>
+                                    <div style="background:rgba(255,82,82,.08);border:1px solid rgba(255,82,82,.3);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#ff5252;font-weight:700;">151–200</div><div style="color:var(--text-secondary);">Unhealthy</div>
+                                    </div>
+                                    <div style="background:rgba(255,23,68,.1);border:1px solid rgba(255,23,68,.35);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#ff1744;font-weight:700;">201–300</div><div style="color:var(--text-secondary);">Very Unhealthy</div>
+                                    </div>
+                                    <div style="background:rgba(183,28,28,.12);border:1px solid rgba(183,28,28,.4);border-radius:8px;padding:7px;text-align:center;font-size:.72rem;">
+                                        <div style="color:#b71c1c;font-weight:700;">300+</div><div style="color:var(--text-secondary);">Hazardous</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div><!-- /aqi-view -->
+
+            <!-- ========== ACTIVITY VIEW ========== -->
+            <div id="activity-view" class="view-section hidden-view">
+                <div class="view-grid">
+                    <section class="panel sensor-panel-full">
+                        <div class="panel-header">
+                            <h2><i class="fas fa-wave-square"></i> Live Sensor Data</h2>
+                            <div class="timestamp"><i class="fas fa-clock" style="margin-right:5px;"></i>Last Update: <span id="val-timestamp">--:--:--</span></div>
+                        </div>
+                        <div class="activity-workspace" id="activity-workspace">
+                            <!-- Chart (hidden until a sensor card is clicked) -->
+                            <div class="chart-container-wrapper hidden" id="chart-section">
+                                <div class="chart-controls">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <button class="btn-back" id="btn-back-sensors"><i class="fas fa-arrow-left"></i></button>
+                                        <h3 id="chart-title">Sensor Plot</h3>
+                                    </div>
+                                    <div class="chart-toolbar">
+                                        <button class="chart-tb-btn live-btn" id="btn-live-toggle">
+                                            <span class="live-dot" id="live-dot"></span>
+                                            <span id="live-label">LIVE</span>
+                                        </button>
+                                        <button class="chart-tb-btn" id="btn-zoom-in"    title="Zoom In"><i class="fas fa-magnifying-glass-plus"></i></button>
+                                        <button class="chart-tb-btn" id="btn-zoom-out"   title="Zoom Out"><i class="fas fa-magnifying-glass-minus"></i></button>
+                                        <button class="chart-tb-btn" id="btn-zoom-reset" title="Reset to live view"><i class="fas fa-rotate-right"></i> Reset</button>
+                                        <select class="chart-tb-btn" id="chart-window" title="Time window" style="padding:6px 10px;cursor:pointer;">
+                                            <option value="2">2 min</option>
+                                            <option value="5">5 min</option>
+                                            <option value="10" selected>10 min</option>
+                                            <option value="30">30 min</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-legend-custom" id="chart-legend-custom"></div>
+                                <div class="canvas-wrapper">
+                                    <canvas id="sensor-chart"></canvas>
+                                </div>
+                                <div class="chart-hint">
+                                    <i class="fas fa-scroll" style="margin-right:4px;"></i>Scroll to zoom · Click &amp; drag to pan · Press Reset to return to live view
+                                </div>
+                            </div>
+                            <!-- Sensor cards -->
+                            <div class="sensor-grid-large" id="activity-cards">
+                                <div class="sensor-card hoverable" data-sensor="mq135" tabindex="0">
+                                    <i class="fas fa-smog" style="font-size:1.5rem;color:var(--accent);margin-bottom:8px;opacity:.8;"></i>
+                                    <span class="sensor-label">Air Quality (CO / NH3 / Benzene)</span>
+                                    <span class="sensor-value" id="val-act-mq135">--</span>
+                                    <div class="hover-hint">Click to plot</div>
+                                </div>
+                                <div class="sensor-card hoverable" data-sensor="mq2" tabindex="0">
+                                    <i class="fas fa-fire-flame-curved" style="font-size:1.5rem;color:var(--color-low);margin-bottom:8px;opacity:.8;"></i>
+                                    <span class="sensor-label">Smoke / LPG / Butane (MQ2)</span>
+                                    <span class="sensor-value" id="val-act-mq2">--</span>
+                                    <div class="hover-hint">Click to plot</div>
+                                </div>
+                                <div class="sensor-card hoverable" data-sensor="mq5sim" tabindex="0">
+                                    <i class="fas fa-gas-pump" style="font-size:1.5rem;color:#69ff47;margin-bottom:8px;opacity:.8;"></i>
+                                    <span class="sensor-label">Natural Gas / Sim (MQ5)</span>
+                                    <span class="sensor-value" id="val-act-mq5sim">--</span>
+                                    <div class="hover-hint">Click to plot</div>
+                                </div>
+                                <div class="sensor-card hoverable" data-sensor="temp" tabindex="0">
+                                    <i class="fas fa-temperature-half" style="font-size:1.5rem;color:#ff6e40;margin-bottom:8px;opacity:.8;"></i>
+                                    <span class="sensor-label">Temperature</span>
+                                    <span class="sensor-value"><span id="val-act-temp">--</span><span class="unit">°C</span></span>
+                                    <div class="hover-hint">Click to plot</div>
+                                </div>
+                                <div class="sensor-card hoverable" data-sensor="hum" tabindex="0">
+                                    <i class="fas fa-droplet" style="font-size:1.5rem;color:#40c4ff;margin-bottom:8px;opacity:.8;"></i>
+                                    <span class="sensor-label">Humidity</span>
+                                    <span class="sensor-value"><span id="val-act-hum">--</span><span class="unit">%</span></span>
+                                    <div class="hover-hint">Click to plot</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div><!-- /activity-view -->
+
+            <!-- ========== CONTROL VIEW ========== -->
+            <div id="control-view" class="view-section hidden-view">
+                <div class="view-grid">
+                    <section class="panel control-panel">
+                        <h2><i class="fas fa-sliders"></i> Device Control</h2>
+                        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:.88rem;">
+                            <i class="fas fa-circle-info" style="color:var(--accent);margin-right:6px;"></i>
+                            Send serial commands directly to ESP32. Changes take effect on the breadboard immediately.
+                        </p>
+                        <div class="control-grid">
+                            <button class="ctrl-btn btn-auto active" id="btn-auto">
+                                <i class="fas fa-tower-broadcast"></i> Auto (Live)
+                            </button>
+                            <button class="ctrl-btn btn-safe">
+                                <i class="fas fa-shield-halved"></i> Force Safe
+                            </button>
+                            <button class="ctrl-btn btn-warn">
+                                <i class="fas fa-triangle-exclamation"></i> Force Warning
+                            </button>
+                            <button class="ctrl-btn btn-danger" id="btn-force-danger">
+                                <i class="fas fa-radiation"></i> Force Danger
+                            </button>
+                        </div>
+
+                        <div class="danger-confirm" id="danger-confirm">
+                            <p><i class="fas fa-skull-crossbones" style="color:var(--color-unsafe);margin-right:8px;"></i>
+                                This will trigger the <strong>relay, RED LED, and buzzer</strong> on the hardware. Confirm?</p>
+                            <div class="danger-confirm-btns">
+                                <button class="btn-confirm-yes" id="btn-confirm-yes"><i class="fas fa-check"></i> Confirm</button>
+                                <button class="btn-confirm-no"  id="btn-confirm-no"><i class="fas fa-xmark"></i> Cancel</button>
+                            </div>
+                        </div>
+
+                        <div class="control-status" style="margin-top:14px;">
+                            <i class="fas fa-circle-dot" style="color:var(--accent);"></i>
+                            Active Mode: <span id="current-mode">AUTO</span>
+                        </div>
+                    </section>
+                </div>
+            </div><!-- /control-view -->
+
+            <!-- ========== SETTINGS VIEW ========== -->
+            <div id="settings-view" class="view-section hidden-view">
+                <div class="view-grid">
+
+                    <!-- Appearance -->
+                    <section class="panel control-panel">
+                        <h2><i class="fas fa-palette"></i> Appearance</h2>
+                        <div class="settings-form">
+                            <div class="form-group" style="flex-direction:row;align-items:center;gap:18px;">
+                                <span style="font-weight:bold;color:var(--text-primary);">Dark</span>
+                                <label class="switch"><input type="checkbox" id="theme-toggle"><span class="slider round"></span></label>
+                                <span style="font-weight:bold;color:var(--text-primary);">Light</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Thresholds & history -->
+                    <section class="panel control-panel">
+                        <h2><i class="fas fa-gear"></i> Configuration</h2>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label><i class="fas fa-triangle-exclamation" style="color:var(--color-low);margin-right:6px;"></i>Warning Threshold — Gas ADC value</label>
+                                <input type="number" class="glass-input" id="warn-adc" value="800" min="0" max="4095" placeholder="Default: 800">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-radiation" style="color:var(--color-unsafe);margin-right:6px;"></i>Danger Threshold — Gas ADC value</label>
+                                <input type="number" class="glass-input" id="danger-adc" value="1200" min="0" max="4095" placeholder="Default: 1200">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-database" style="color:var(--accent);margin-right:6px;"></i>Graph History Points</label>
+                                <select class="glass-input" id="history-points">
+                                    <option value="60">60 points</option>
+                                    <option value="120">120 points</option>
+                                    <option value="300" selected>300 points</option>
+                                    <option value="600">600 points</option>
+                                </select>
+                            </div>
+                            <button class="ctrl-btn btn-safe" style="max-width:200px;margin-top:6px;" id="save-config-btn">
+                                <i class="fas fa-floppy-disk"></i> Save Config
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Email Notifications -->
+                    <section class="panel control-panel" id="email-panel">
+                        <h2>
+                            <i class="fas fa-envelope"></i> Email Notifications
+                            <span class="email-status-badge" id="email-badge" style="margin-left:auto;">
+                                <span class="dot"></span> Not configured
+                            </span>
+                        </h2>
+                        <p style="color:var(--text-secondary);font-size:.87rem;margin-bottom:18px;">
+                            <i class="fas fa-circle-info" style="color:var(--accent);margin-right:6px;"></i>
+                            Enter your details below. Uses <strong style="color:var(--accent);">EmailJS</strong> (free, browser-native — no server needed).
+                            You'll need a free <a href="https://www.emailjs.com" target="_blank" style="color:var(--accent);">emailjs.com</a> account.
+                        </p>
+
+                        <div class="settings-form" style="max-width:700px;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                <div class="form-group">
+                                    <label><i class="fas fa-key" style="color:var(--accent);margin-right:6px;"></i>EmailJS Public Key</label>
+                                    <input type="text" class="glass-input" id="ejs-pubkey" placeholder="e.g. user_xxxxxxxxxxxxxx" autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-server" style="color:var(--accent);margin-right:6px;"></i>Service ID</label>
+                                    <input type="text" class="glass-input" id="ejs-service" placeholder="e.g. service_xxxxxxx" autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-file-code" style="color:var(--accent);margin-right:6px;"></i>Template ID</label>
+                                    <input type="text" class="glass-input" id="ejs-template" placeholder="e.g. template_xxxxxxx" autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-envelope-open-text" style="color:var(--accent);margin-right:6px;"></i>Recipient Email</label>
+                                    <input type="email" class="glass-input" id="ejs-recipient" placeholder="your@email.com" autocomplete="off">
+                                </div>
+                            </div>
+
+                            <div style="background:rgba(0,210,255,.06);border:1px solid rgba(0,210,255,.2);border-radius:10px;padding:14px 16px;margin-top:4px;">
+                                <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">
+                                    <i class="fas fa-circle-info" style="color:var(--accent);margin-right:6px;"></i>EmailJS Template Variables
+                                </p>
+                                <p style="font-size:.8rem;color:var(--text-secondary);line-height:1.7;">
+                                    Create a template on emailjs.com using these variables:<br>
+                                    <code style="color:var(--accent);">{{alert_type}}</code> ·
+                                    <code style="color:var(--accent);">{{mq135}}</code> ·
+                                    <code style="color:var(--accent);">{{mq2}}</code> ·
+                                    <code style="color:var(--accent);">{{temperature}}</code> ·
+                                    <code style="color:var(--accent);">{{humidity}}</code> ·
+                                    <code style="color:var(--accent);">{{timestamp}}</code> ·
+                                    <code style="color:var(--accent);">{{to_email}}</code>
+                                </p>
+                            </div>
+
+                            <div style="margin-top:6px;">
+                                <div class="notif-toggle-row">
+                                    <span><i class="fas fa-triangle-exclamation" style="color:var(--color-low);"></i>Notify on Force Warning</span>
+                                    <label class="switch"><input type="checkbox" id="notify-warn" checked><span class="slider round"></span></label>
+                                </div>
+                                <div class="notif-toggle-row">
+                                    <span><i class="fas fa-radiation" style="color:var(--color-unsafe);"></i>Notify on Force Danger</span>
+                                    <label class="switch"><input type="checkbox" id="notify-danger" checked><span class="slider round"></span></label>
+                                </div>
+                                <div class="notif-toggle-row">
+                                    <span><i class="fas fa-sensor" style="color:var(--color-unsafe);"></i>Notify on auto-detected Danger (sensor)</span>
+                                    <label class="switch"><input type="checkbox" id="notify-auto-danger" checked><span class="slider round"></span></label>
+                                </div>
+                            </div>
+
+                            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
+                                <button class="btn-save-email" id="btn-save-email">
+                                    <i class="fas fa-floppy-disk"></i> Save &amp; Activate
+                                </button>
+                                <button class="btn-test-email" id="btn-test-email">
+                                    <i class="fas fa-paper-plane"></i> Send Test Email
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div><!-- /settings-view -->
+
+        </main>
+    </div><!-- /main-content -->
+</div><!-- /app-dashboard -->
+
+<script src="script.js"></script>
+</body>
+</html>
